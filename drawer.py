@@ -73,13 +73,9 @@ REGION_ORDER = "big_first"
 EDGE_ORDER   = "as_found"
 RANDOM_SEED  = 7
 
-# ---- Paper background ----
-#   "sheet" : a cream sheet of paper on a wooden desk
-#   "full"  : the whole window is cream paper
-#   "white" : plain white like before
 PAPER_STYLE       = "sheet"
-PAPER_COLOR       = "#F7EFDC"
-DESK_COLOR        = "#8A6A4B"
+PAPER_COLOR       = "#000000"
+DESK_COLOR        = "#000E07"
 SKIP_PAPER_WHITE  = True   # white background of the picture is left as paper instead of painted white
 
 # ---- Colour pencil ----
@@ -440,15 +436,15 @@ if PAPER_STYLE == "sheet":
     pad = 10
     x0, x1 = -draw_w / 2 - pad, draw_w / 2 + pad
     y0, y1 = -draw_h / 2 - pad, draw_h / 2 + pad
-    draw_rect(paper, x0 + 7, y0 - 7, x1 + 7, y1 - 7, "#6E5238")            # shadow
-    draw_rect(paper, x0, y0, x1, y1, PAPER_COLOR, "#CDBF9F", 2)              # sheet
-    HUD_COLOR = "#FFF1D0"
+    draw_rect(paper, x0 + 7, y0 - 7, x1 + 7, y1 - 7, "#11341C")            # shadow
+    draw_rect(paper, x0, y0, x1, y1, PAPER_COLOR, "#A2CBB6", 2)              # sheet
+    HUD_COLOR = "#7DAB95"
 elif PAPER_STYLE == "full":
     screen.bgcolor(PAPER_COLOR)
     HUD_COLOR = "#3A2F25"
 else:
     screen.bgcolor("white")
-    HUD_COLOR = "#3A2F25"
+    HUD_COLOR = "#241D17"
 
 # ------------------------------------------------------------
 # PENCIL SHAPES (tip of the pencil is exactly where the line is drawn)
@@ -523,10 +519,10 @@ hud = turtle.Turtle()
 hud.hideturtle()
 hud.speed(0)
 hud.penup()
-hud.color(HUD_COLOR)
+hud.color("white", HUD_COLOR)
 
-HUD_FONT = ("Courier New", 11, "bold")
-HUD_FONT_SMALL = ("Courier New", 9, "normal")
+HUD_FONT = ("Courier New", 16, "bold")
+HUD_FONT_SMALL = ("Courier New", 11, "normal")
 
 speed_level = min(max(START_SPEED_LEVEL, 1), len(SPEED_LEVELS)) - 1
 paused = False
