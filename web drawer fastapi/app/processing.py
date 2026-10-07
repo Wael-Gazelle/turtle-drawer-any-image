@@ -15,8 +15,6 @@ MAX_SIDE = 1000
 MAX_REGIONS = 10000
 MAX_EDGE_POINTS = 200_000
 MAX_SKETCH_POINTS = 250_000      # cap for the pencil-sketch lines
-SKETCH_THRESHOLD = 0.35          # lower = more sketch lines (0.1 .. 1.0)
-SKETCH_MIN_LEN = 6               # lower = more tiny lines kept
 
 
 def _lerp(v: float, lo: float, hi: float) -> float:
@@ -50,8 +48,9 @@ def process(data: bytes, s: Settings) -> dict:
 
     # --- slider mapping ---
     median = 3 + 2 * int(_lerp(s.texture, 0, 5))          # 3..13 (more = flatter)
-    min_area = _lerp(s.detail, 300, 8)
-    region_eps = _lerp(s.detail, 1.5, 0.05)
+    ct = s.color_detail / 100                              # colour-fill detail: 0 = simple shapes, 1 = every pixel edge
+    region_eps = 1.5 + (0.05 - 1.5) * ct
+    min_region = 1 + 30 * (1 - ct) ** 2                    # smallest colour patch (pixels) that is kept
     edge_len = _lerp(s.detail, 50, 3)
     canny_low = _lerp(s.sharpness, 160, 30)
 
@@ -120,7 +119,7 @@ def process(data: bytes, s: Settings) -> dict:
 
             # Keep even small regions.
             # At high color counts these small regions are important.
-            if area < max(1, min_area * 0.01):
+            if area < min_region:
                 continue
 
             poly = cv2.approxPolyDP(
@@ -198,13 +197,15 @@ def process(data: bytes, s: Settings) -> dict:
 
     # --- sketch lines: a separate, more sensitive edge pass, longest (= most important) first ---
     sk_gray = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (3, 3), 0)
-    sk_low = max(8.0, canny_low * SKETCH_THRESHOLD)
+    sd = s.sketch_detail / 100                             # 0 = few main lines, 1 = very detailed sketch
+    sk_low = max(8.0, canny_low * (1.0 - 0.9 * sd))
+    sk_min_len = 14 - 11 * sd
     sk_edges = cv2.Canny(sk_gray, sk_low, sk_low * 2.5)
     scnts, _ = cv2.findContours(sk_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     sk_lines = []
     for c in scnts:
         length = cv2.arcLength(c, False)
-        if length < SKETCH_MIN_LEN:
+        if length < sk_min_len:
             continue
         pts = cv2.approxPolyDP(c, 0.8, False).reshape(-1, 2)
         if len(pts) >= 2:

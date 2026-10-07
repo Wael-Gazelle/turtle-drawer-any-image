@@ -79,3 +79,22 @@ details .ctl{margin-top:1rem}
 
 @media (max-width:860px){.hero{grid-template-columns:1fr;gap:2rem}.studio{grid-template-columns:1fr;gap:2rem}}
 @media (prefers-reduced-motion:reduce){.scribble path{animation:none;stroke-dashoffset:0}.drop{transition:none}.spin{animation-duration:3s}}
+
+/* ---- more paper types ---- */
+.paper[data-paper=black]{background:#15151a}
+.paper[data-paper=red]{background:#b3262d}
+.paper[data-paper=blue]{background:#1d3f8f}
+.paper[data-paper=gray]{background:#9a9a9a}
+.paper[data-paper=kraft]{background:#b98f5e}
+.paper[data-paper=ancient]{background:radial-gradient(ellipse at 18% 12%,rgba(255,246,214,.6),transparent 55%),radial-gradient(ellipse at 88% 92%,rgba(120,80,30,.35),transparent 60%),#e6cf9c;
+  box-shadow:inset 0 0 70px rgba(110,70,20,.5),10px 10px 0 var(--pink),20px 20px 0 var(--yellow)}
+
+/* ---- advanced panel groups ---- */
+details h3{margin:1.4rem 0 0;font:700 .78rem var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:.6}
+details h3:first-of-type{margin-top:1.1rem}
+.chip{width:26px;height:26px}
+
+/* ---- colour pickers ---- */
+.ctl.colorrow{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.ctl.colorrow label{margin:0}
+input[type=color]{width:64px;height:2.1rem;padding:2px;background:#fff;border:2px solid var(--ink);border-radius:8px;cursor:pointer}

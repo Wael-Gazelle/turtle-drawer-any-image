@@ -1,14 +1,54 @@
 (() => {
 const $ = id => document.getElementById(id), S = 2, MAXPX = 1200;
 const PRESETS = {
-  Soft: {sharpness: 30, colors: 8, texture: 75, detail: 300},
-  Balanced: {sharpness: 50, colors: 12, texture: 50, detail: 500},
-  Crisp: {sharpness: 75, colors: 16, texture: 25, detail: 750},
+  Soft:     {sharpness: 30, colors: 8,  texture: 75, detail: 300, sketch_detail: 35, color_detail: 50},
+  Balanced: {sharpness: 50, colors: 12, texture: 50, detail: 500, sketch_detail: 60, color_detail: 80},
+  Crisp:    {sharpness: 75, colors: 16, texture: 25, detail: 750, sketch_detail: 85, color_detail: 100},
 };
+
+/* paper presets: background colour + a matching sketch colour (both can be changed afterwards with the colour pickers) */
+const PAPERS = {
+  sheet:   {bg: "#fffdf6", ink: [120, 120, 120]},
+  full:    {bg: "#f3ead3", ink: [120, 120, 120]},
+  white:   {bg: "#ffffff", ink: [120, 120, 120]},
+  ancient: {bg: "#e6cf9c", ink: [110, 84, 48]},
+  kraft:   {bg: "#b98f5e", ink: [70, 45, 25]},
+  gray:    {bg: "#9a9a9a", ink: [55, 55, 55]},
+  black:   {bg: "#15151a", ink: [225, 225, 225]},
+  red:     {bg: "#b3262d", ink: [245, 225, 225]},
+  blue:    {bg: "#1d3f8f", ink: [225, 232, 250]},
+};
+const hex = c => "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+const unhex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const autoInk = bg => {                                    // a readable sketch colour for any background
+  const [r, g, b] = unhex(bg), L = .299 * r + .587 * g + .114 * b;
+  return L >= 190 ? [120, 120, 120] : L >= 130 ? [55, 55, 55] : [235, 235, 235];
+};
+
+/* ---------- tools: how they look and how they draw (the tool always takes the colour of what it draws) ---------- */
+const TOOLS = {
+  pencil: {w: {sketch: 1, line: 1.2}, a: {sketch: 1, line: 1},
+    draw(c, body) {
+      c.fillStyle = "#f2c894"; c.beginPath(); c.moveTo(0, 0); c.lineTo(9, -3); c.lineTo(9, 3); c.fill();
+      c.fillStyle = "#3b3b3b"; c.beginPath(); c.moveTo(0, 0); c.lineTo(3, -1.1); c.lineTo(3, 1.1); c.fill();
+      c.fillStyle = body; c.fillRect(9, -3, 30, 6);
+      c.fillStyle = "#c0c0c0"; c.fillRect(39, -3, 4, 6);
+      c.fillStyle = "#f59ab0"; c.fillRect(43, -3, 6, 6);
+      c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = .6; c.strokeRect(9, -3, 40, 6);
+    }},
+  brush: {w: {sketch: 2.4, line: 2.8}, a: {sketch: .7, line: .95},
+    draw(c, body) {
+      c.fillStyle = body; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(5, -5, 15, -3.6); c.lineTo(15, 3.6); c.quadraticCurveTo(5, 5, 0, 0); c.fill();
+      c.fillStyle = "#b9bcc6"; c.fillRect(15, -3.8, 11, 7.6);
+      c.fillStyle = "#7a4a22"; c.beginPath(); c.moveTo(26, -3); c.lineTo(66, -1.6); c.lineTo(66, 1.6); c.lineTo(26, 3); c.fill();
+      c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = .6; c.strokeRect(15, -3.8, 11, 7.6);
+    }},
+};
+
 const cv = $("cv"), ctx = cv.getContext("2d");
 const base = document.createElement("canvas"), bctx = base.getContext("2d");
-let blob, ctl, res, ops = [], cum = [], info = {}, total = 0, pos = 0, done = 0, rate = 1;
-let speed = 1, elapsed = 0, last = 0, playing = false, first = true, timer = 0;
+let blob, ctl, res, ops = [], cum = [], info = {}, total = 0, pos = 0, done = 0, rate = 1, st = {w: {}, a: {}};
+let speed = 1, elapsed = 0, last = 0, playing = false, first = true, timer = 0, raf = 0, inkTimer = 0;
 
 const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 const fmt = t => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -61,17 +101,20 @@ function load(data) {
 }
 
 function build() {
+  const T = TOOLS[$("tool").value] || TOOLS.pencil, k = $("thick").value / 100;
+  st = {w: {sketch: T.w.sketch * k, line: T.w.line * k}, a: T.a};
   const sketch = $("draw_mode").value === "sketch", skip = $("paper_style").value !== "white";
-  const K = sketch ? (res.sketch || res.edges).map(e => ({k: "sketch", p: e.p, c: [120, 120, 120]})) : [];
+  const ink = unhex($("sketch_color").value);
+  const K = sketch ? (res.sketch || res.edges).map(e => ({k: "sketch", p: e.p, c: ink})) : [];
   const F = res.regions.filter(r => !(skip && r.w)).map(r => ({k: "fill", p: r.p, c: r.c}));
   const L = res.edges.map(e => ({k: "line", p: e.p, c: e.c}));
   ops = [...K, ...F, ...L]; cum = []; info = {}; total = 0;
-  const pts = k => ops.filter(o => o.k === k).reduce((a, o) => a + o.p.length / 2, 0);
+  const pts = kind => ops.filter(o => o.k === kind).reduce((a, o) => a + o.p.length / 2, 0);
   const sk = pts("sketch"), rest = pts("fill") + pts("line");
-  const scale = sk ? Math.max(1, 0.4 * rest / (0.6 * sk)) : 1;   // sketch gets ~40% of the whole timeline
+  const scale = sk ? Math.max(1, 0.4 * rest / (0.6 * sk)) : 1;   // the sketch gets about 40% of the timeline
   ops.forEach((o, i) => {
     o.n = o.p.length / 2;
-    o.len = o.k === "sketch" ? o.n * scale : o.n;                // time this op takes (sketch is slowed down)
+    o.len = o.k === "sketch" ? o.n * scale : o.n;                // time this step takes
     cum.push(total); total += o.len;
     (info[o.k] ||= {first: i, count: 0}).count++;
   });
@@ -90,21 +133,20 @@ function path(c, p, n) {                                  // smooth curve throug
 
 function draw(c, o, n) {
   path(c, o.p, n);
+  c.lineCap = c.lineJoin = "round";
   if (o.k === "fill") {
     c.fillStyle = c.strokeStyle = rgb(o.c); c.lineWidth = 1;
     if (n >= o.n) { c.closePath(); c.fill(); }
-  } else { c.strokeStyle = rgb(o.c); c.lineWidth = o.k === "sketch" ? 1 : 1.2; }
-  c.stroke();
+  } else { c.strokeStyle = rgb(o.c); c.lineWidth = st.w[o.k]; c.globalAlpha = st.a[o.k]; }
+  c.stroke(); c.globalAlpha = 1;
 }
 
 function tip(x, y, col) {
-  ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 3);
-  const body = $("color_pencil").checked ? rgb(col) : "#f2b705";
-  ctx.fillStyle = "#f2c894"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(9, -3); ctx.lineTo(9, 3); ctx.fill();
-  ctx.fillStyle = body; ctx.fillRect(9, -3, 30, 6);
-  ctx.fillStyle = "#c0c0c0"; ctx.fillRect(39, -3, 4, 6);
-  ctx.fillStyle = "#f59ab0"; ctx.fillRect(43, -3, 6, 6);
-  ctx.strokeStyle = "rgba(0,0,0,.45)"; ctx.lineWidth = .6; ctx.strokeRect(9, -3, 40, 6);
+  const tool = $("tool").value;
+  if (tool === "off") return;
+  const sc = Math.max(.8, Math.min(2.4, res.w / 700)) * $("tool_size").value / 100;
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(-Math.PI / 3);
+  TOOLS[tool].draw(ctx, rgb(col));
   ctx.restore();
 }
 
@@ -136,17 +178,30 @@ function frame(t) {
   pos = Math.min(total, pos + dt * rate * speed);
   if (pos >= total) { playing = false; celebrate(); }
   render();
-  if (playing) requestAnimationFrame(frame);
+  if (playing) raf = requestAnimationFrame(frame);
 }
 function play(on) {
   if (on && pos >= total) restart(false);
-  playing = on;
-  if (on) { last = performance.now(); requestAnimationFrame(frame); }
+  const was = playing; playing = on;
+  if (on && !was) { last = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); }   // never two loops
   render();
 }
 function restart(auto) { resetBase(); pos = 0; elapsed = 0; auto ? play(true) : render(); }
 function seek(p) { if (p < pos) resetBase(); pos = p; render(); }
 function setSpeed(v) { speed = Math.min(8, Math.max(0.25, v)); $("speed").value = speed; $("o_speed").textContent = speed + "x"; }
+
+function save() {                                         // the finished drawing as a PNG
+  if (!res) return;
+  const c = document.createElement("canvas"); c.width = cv.width; c.height = cv.height;
+  const g = c.getContext("2d");
+  g.fillStyle = $("bg_color").value; g.fillRect(0, 0, c.width, c.height);
+  g.setTransform(S, 0, 0, S, 0, 0);
+  for (const o of ops) draw(g, o, o.n);
+  c.toBlob(b => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "drawing.png";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+}
 
 /* ---------- palette chips and finish burst ---------- */
 const fx = $("fx"), fctx = fx.getContext("2d");
@@ -203,20 +258,51 @@ $("again").addEventListener("click", () => {
 $("play").addEventListener("click", () => play(!playing));
 $("restart").addEventListener("click", () => restart(true));
 $("end").addEventListener("click", () => { playing = false; pos = total; render(); });
+$("save").addEventListener("click", save);
 $("scrub").addEventListener("input", e => seek(total * e.target.value / 1000));
 $("speed").addEventListener("input", e => setSpeed(+e.target.value));
 
+/* data-k  = server settings (re-processes the image)
+   data-f  = how the drawing is built/looks (rebuilt in the browser)
+   data-u  = live options that only need a redraw (tool size) */
+function keepPlace() {                                    // rebuild but stay at the same place in the drawing
+  if (!res) return;
+  const f = total ? pos / total : 1;
+  build(); pos = Math.min(total, f * total); render();
+}
 document.querySelectorAll("[data-k]").forEach(el => el.addEventListener("input", () => {
   const out = $("o_" + el.id); if (out) out.textContent = el.value;
   clearTimeout(timer); timer = setTimeout(run, 400);          // wait for the slider to settle
 }));
-document.querySelectorAll("[data-f]").forEach(el => el.addEventListener("change", () => {
-  $("paper").dataset.paper = $("paper_style").value;
-  if (!res) return;
-  build();
-  if (el.id === "draw_mode") restart(true);          // replay so the sketch is actually seen
-  else { playing = false; pos = total; render(); }
+document.querySelectorAll("input[type=range][data-f]").forEach(el => el.addEventListener("input", () => {
+  const out = $("o_" + el.id); if (out) out.textContent = el.value;
 }));
+document.querySelectorAll("[data-f]").forEach(el => el.addEventListener("change", () => {
+  if (!res) return;
+  if (el.id === "draw_mode") { build(); restart(true); return; }   // replay so the new order is seen
+  keepPlace();
+}));
+document.querySelectorAll("[data-u]").forEach(el => el.addEventListener("input", () => {
+  const out = $("o_" + el.id); if (out) out.textContent = el.value;
+  if (res) render();
+}));
+
+/* ---------- paper, background colour and sketch colour ---------- */
+function paperCss() {                                     // presets use the stylesheet, custom colours are set directly
+  const p = $("paper"), v = $("paper_style").value;
+  p.dataset.paper = v; p.style.background = v === "custom" ? $("bg_color").value : "";
+}
+$("paper_style").addEventListener("change", () => {
+  const P = PAPERS[$("paper_style").value];
+  if (P) { $("bg_color").value = P.bg; $("sketch_color").value = hex(P.ink); }   // a preset sets both colours
+  paperCss(); keepPlace();
+});
+$("bg_color").addEventListener("input", () => { $("paper_style").value = "custom"; paperCss(); });   // live preview
+$("bg_color").addEventListener("change", () => {
+  $("sketch_color").value = hex(autoInk($("bg_color").value));    // pick a readable sketch colour, then you can change it
+  keepPlace();
+});
+$("sketch_color").addEventListener("input", () => { clearTimeout(inkTimer); inkTimer = setTimeout(keepPlace, 120); });
 
 function applyPreset(name) {
   Object.entries(PRESETS[name]).forEach(([k, v]) => { $(k).value = v; $("o_" + k).textContent = v; });

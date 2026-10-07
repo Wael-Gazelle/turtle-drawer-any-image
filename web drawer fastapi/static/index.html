@@ -41,6 +41,7 @@
         <button id="play" type="button">Play</button>
         <button id="restart" type="button">Restart</button>
         <button id="end" type="button">Skip to end</button>
+        <button id="save" type="button" class="quiet">Save PNG</button>
         <label class="speed" for="speed">Speed <output id="o_speed">1x</output></label>
         <input id="speed" type="range" min="0.25" max="8" step="0.25" value="1">
       </div>
@@ -62,21 +63,48 @@
         <input id="colors" data-k type="range" min="2" max="24" value="12"></div>
       <div class="ctl"><label for="texture">Texture <output id="o_texture">50</output></label>
         <input id="texture" data-k type="range" min="0" max="100" value="50"></div>
-      <div class="ctl"><label for="detail">Detail <output id="o_detail">50</output></label>
-        <input id="detail" data-k type="range" min="50" max="1000" value="500">
+      <div class="ctl"><label for="detail">Outline detail <output id="o_detail">1000</output></label>
+        <input id="detail" data-k type="range" min="50" max="1000" value="1000"></div>
+
       <details>
         <summary>Advanced</summary>
+
+        <h3>Drawing</h3>
+        <div class="ctl"><label for="draw_mode">Draw mode</label>
+          <select id="draw_mode" data-f><option value="sketch" selected>Sketch first</option><option value="fills">Colour first</option></select></div>
+        <div class="ctl"><label for="sketch_detail">Sketch detail <output id="o_sketch_detail">70</output></label>
+          <input id="sketch_detail" data-k type="range" min="0" max="100" value="70"></div>
+        <div class="ctl"><label for="color_detail">Colour detail <output id="o_color_detail">100</output></label>
+          <input id="color_detail" data-k type="range" min="0" max="100" value="100"></div>
+
+        <h3>Pencil and brush</h3>
+        <div class="ctl"><label for="tool">Drawing tool</label>
+          <select id="tool" data-f><option value="pencil">Pencil</option><option value="brush">Brush</option><option value="off">Off</option></select></div>
+        <div class="ctl"><label for="tool_size">Tool size <output id="o_tool_size">100</output>%</label>
+          <input id="tool_size" data-u type="range" min="30" max="300" step="10" value="100"></div>
+        <div class="ctl"><label for="thick">Line thickness <output id="o_thick">100</output>%</label>
+          <input id="thick" data-f type="range" min="40" max="250" step="10" value="100"></div>
+
+        <h3>Paper and colours</h3>
+        <div class="ctl"><label for="paper_style">Paper</label>
+          <select id="paper_style">
+            <option value="sheet">Sheet on desk</option><option value="full">Full paper</option><option value="white">White</option>
+            <option value="ancient">Ancient parchment</option><option value="kraft">Brown kraft</option><option value="gray">Gray</option>
+            <option value="black">Black (chalkboard)</option><option value="red">Red</option><option value="blue">Blue</option>
+            <option value="custom">Custom colour</option>
+          </select></div>
+        <div class="ctl colorrow"><label for="bg_color">Background colour</label>
+          <input id="bg_color" type="color" value="#fffdf6"></div>
+        <div class="ctl colorrow"><label for="sketch_color">Sketch colour</label>
+          <input id="sketch_color" type="color" value="#787878"></div>
+
+        <h3>Outlines</h3>
         <div class="ctl"><label for="outline_mode">Outline colour</label>
           <select id="outline_mode" data-k><option value="image">From the image</option><option value="black">Black</option></select></div>
         <div class="ctl"><label for="outline_darken">Outline darkness <output id="o_outline_darken">0.65</output></label>
           <input id="outline_darken" data-k type="range" min="0.2" max="1" step="0.05" value="0.65"></div>
         <div class="ctl"><label for="edge_order">Outline order</label>
           <select id="edge_order" data-k><option value="as_found">As found</option><option value="top_to_bottom">Top to bottom</option><option value="left_to_right">Left to right</option></select></div>
-        <div class="ctl"><label for="draw_mode">Draw mode</label>
-          <select id="draw_mode" data-f><option value="fills">Colour first</option><option value="sketch">Sketch first</option></select></div>
-        <div class="ctl"><label for="paper_style">Paper</label>
-          <select id="paper_style" data-f><option value="sheet">Sheet on desk</option><option value="full">Full paper</option><option value="white">White</option></select></div>
-        <div class="ctl check"><input id="color_pencil" data-f type="checkbox" checked><label for="color_pencil">Pencil takes the drawing colour</label></div>
       </details>
       <button id="again" class="quiet" type="button">Use a different image</button>
     </aside>
