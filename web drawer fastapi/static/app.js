@@ -1,9 +1,9 @@
 (() => {
 const $ = id => document.getElementById(id), S = 2, MAXPX = 1200;
 const PRESETS = {
-  Soft: {sharpness: 30, colors: 8, texture: 75, detail: 30},
-  Balanced: {sharpness: 50, colors: 12, texture: 50, detail: 50},
-  Crisp: {sharpness: 75, colors: 16, texture: 25, detail: 75},
+  Soft: {sharpness: 30, colors: 8, texture: 75, detail: 300},
+  Balanced: {sharpness: 50, colors: 12, texture: 50, detail: 500},
+  Crisp: {sharpness: 75, colors: 16, texture: 25, detail: 750},
 };
 const cv = $("cv"), ctx = cv.getContext("2d");
 const base = document.createElement("canvas"), bctx = base.getContext("2d");
@@ -62,12 +62,17 @@ function load(data) {
 
 function build() {
   const sketch = $("draw_mode").value === "sketch", skip = $("paper_style").value !== "white";
-  const K = sketch ? res.edges.map(e => ({k: "sketch", p: e.p, c: [150, 150, 150]})) : [];
+  const K = sketch ? (res.sketch || res.edges).map(e => ({k: "sketch", p: e.p, c: [120, 120, 120]})) : [];
   const F = res.regions.filter(r => !(skip && r.w)).map(r => ({k: "fill", p: r.p, c: r.c}));
   const L = res.edges.map(e => ({k: "line", p: e.p, c: e.c}));
   ops = [...K, ...F, ...L]; cum = []; info = {}; total = 0;
+  const pts = k => ops.filter(o => o.k === k).reduce((a, o) => a + o.p.length / 2, 0);
+  const sk = pts("sketch"), rest = pts("fill") + pts("line");
+  const scale = sk ? Math.max(1, 0.4 * rest / (0.6 * sk)) : 1;   // sketch gets ~40% of the whole timeline
   ops.forEach((o, i) => {
-    o.n = o.p.length / 2; cum.push(total); total += o.n;
+    o.n = o.p.length / 2;
+    o.len = o.k === "sketch" ? o.n * scale : o.n;                // time this op takes (sketch is slowed down)
+    cum.push(total); total += o.len;
     (info[o.k] ||= {first: i, count: 0}).count++;
   });
   rate = Math.max(200, Math.min(4000, total / 30));      // 1x = about 30 seconds
@@ -104,11 +109,11 @@ function tip(x, y, col) {
 }
 
 function render() {
-  while (done < ops.length && cum[done] + ops[done].n <= pos) { draw(bctx, ops[done], ops[done].n); done++; }
+  while (done < ops.length && cum[done] + ops[done].len <= pos) { draw(bctx, ops[done], ops[done].n); done++; }
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.drawImage(base, 0, 0); ctx.setTransform(S, 0, 0, S, 0, 0);
   if (done < ops.length) {
-    const o = ops[done], n = Math.floor(pos - cum[done]), m = Math.max(n, 1);
+    const o = ops[done], n = Math.floor((pos - cum[done]) * o.n / o.len), m = Math.max(n, 1);
     if (n >= 2) draw(ctx, o, n);
     tip(o.p[2 * m - 2], o.p[2 * m - 1], o.c);
   }
@@ -155,7 +160,6 @@ function palette() {
     const s = document.createElement("span");
     s.className = "chip"; s.style.background = c; s.title = c;
     chips.push(s);
-    if (chips.length === 10) break;
   }
   $("chips").replaceChildren(...chips);
 }
@@ -208,7 +212,10 @@ document.querySelectorAll("[data-k]").forEach(el => el.addEventListener("input",
 }));
 document.querySelectorAll("[data-f]").forEach(el => el.addEventListener("change", () => {
   $("paper").dataset.paper = $("paper_style").value;
-  if (res) { build(); playing = false; pos = total; render(); }
+  if (!res) return;
+  build();
+  if (el.id === "draw_mode") restart(true);          // replay so the sketch is actually seen
+  else { playing = false; pos = total; render(); }
 }));
 
 function applyPreset(name) {

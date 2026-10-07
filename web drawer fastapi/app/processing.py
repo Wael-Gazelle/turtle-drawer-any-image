@@ -11,14 +11,17 @@ import numpy as np
 
 from .schemas import Settings
 
-MAX_SIDE = 560        # working size of the drawing
-MAX_REGIONS = 300
-MAX_EDGE_POINTS = 40_000
+MAX_SIDE = 1000
+MAX_REGIONS = 10000
+MAX_EDGE_POINTS = 200_000
+MAX_SKETCH_POINTS = 250_000      # cap for the pencil-sketch lines
+SKETCH_THRESHOLD = 0.35          # lower = more sketch lines (0.1 .. 1.0)
+SKETCH_MIN_LEN = 6               # lower = more tiny lines kept
 
 
 def _lerp(v: float, lo: float, hi: float) -> float:
-    """Map a 0-100 slider value onto lo..hi."""
-    return lo + (hi - lo) * v / 100
+    """Map a 50-1000 detail slider onto lo..hi."""
+    return lo + (hi - lo) * (v - 50) / 950
 
 
 def _decode(data: bytes) -> np.ndarray:
@@ -47,42 +50,120 @@ def process(data: bytes, s: Settings) -> dict:
 
     # --- slider mapping ---
     median = 3 + 2 * int(_lerp(s.texture, 0, 5))          # 3..13 (more = flatter)
-    min_area = _lerp(s.detail, 500, 40)
-    region_eps = _lerp(s.detail, 2.2, 0.8)
-    edge_len = _lerp(s.detail, 60, 8)
+    min_area = _lerp(s.detail, 300, 8)
+    region_eps = _lerp(s.detail, 1.5, 0.05)
+    edge_len = _lerp(s.detail, 50, 3)
     canny_low = _lerp(s.sharpness, 160, 30)
 
     # --- colour regions ---
-    smooth = cv2.medianBlur(cv2.bilateralFilter(img, 9, 75, 75), median)
+    smooth = cv2.medianBlur(
+        cv2.bilateralFilter(img, 9, 75, 75),
+        median
+    )
+
     cv2.setRNGSeed(7)
-    crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
-    _, labels, centers = cv2.kmeans(smooth.reshape(-1, 3).astype(np.float32), s.colors,
-                                    None, crit, 5, cv2.KMEANS_PP_CENTERS)
+
+    crit = (
+        cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
+        30,
+        0.5
+    )
+
+    _, labels, centers = cv2.kmeans(
+        smooth.reshape(-1, 3).astype(np.float32),
+        s.colors,
+        None,
+        crit,
+        5,
+        cv2.KMEANS_PP_CENTERS
+    )
+
     centers = np.uint8(centers)
-    quant = cv2.medianBlur(centers[labels.flatten()].reshape(img.shape), 5)
+
+    # IMPORTANT:
+    # Keep the original K-means label map.
+    # Do not blur the quantized image because that can create
+    # artificial color boundaries and uncovered areas.
+    label_map = labels.reshape(h, w)
 
     k3 = np.ones((3, 3), np.uint8)
+
     regions = []
-    for col in centers:
-        mask = np.all(quant == col, axis=2).astype(np.uint8) * 255
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k3, iterations=2)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k3)
-        mask = cv2.dilate(mask, k3)
-        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    for color_index, col in enumerate(centers):
+
+        # Pixels belonging to this exact K-means color
+        mask = (
+            label_map == color_index
+        ).astype(np.uint8) * 255
+
+        # Very gentle cleanup.
+        # CLOSE fills tiny holes without aggressively destroying details.
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_CLOSE,
+            k3,
+            iterations=1
+        )
+
+        cnts, _ = cv2.findContours(
+            mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_NONE
+        )
+
         b, g, r = (int(v) for v in col)
+
         for c in cnts:
+
             area = cv2.contourArea(c)
-            if area < min_area:
+
+            # Keep even small regions.
+            # At high color counts these small regions are important.
+            if area < max(1, min_area * 0.01):
                 continue
-            poly = cv2.approxPolyDP(c, region_eps, True)
+
+            poly = cv2.approxPolyDP(
+                c,
+                region_eps,
+                True
+            )
+
             if len(poly) < 3:
                 continue
-            x, y, bw, bh = cv2.boundingRect(c)
-            paper_white = (x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1) and min(r, g, b) >= 235
-            regions.append((area, {"c": [r, g, b], "p": poly.reshape(-1).tolist(), "w": paper_white}))
-    regions.sort(key=lambda t: t[0], reverse=True)       # big first: nothing gets covered
-    regions = [r for _, r in regions[:MAX_REGIONS]]
 
+            x, y, bw, bh = cv2.boundingRect(c)
+
+            paper_white = (
+                (
+                    x <= 1
+                    or y <= 1
+                    or x + bw >= w - 1
+                    or y + bh >= h - 1
+                )
+                and min(r, g, b) >= 235
+            )
+
+            regions.append(
+                (
+                    area,
+                    {
+                        "c": [r, g, b],
+                        "p": poly.reshape(-1).tolist(),
+                        "w": paper_white
+                    }
+                )
+            )
+
+    # Largest regions first.
+    regions.sort(
+        key=lambda t: t[0],
+        reverse=True
+    )
+
+    regions = [
+        r for _, r in regions[:MAX_REGIONS]
+    ]
     # --- edges ---
     gray = cv2.bilateralFilter(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 5, 40, 40)
     edges = cv2.Canny(gray, canny_low, canny_low * 2.5)
@@ -115,5 +196,27 @@ def process(data: bytes, s: Settings) -> dict:
     elif s.edge_order == "left_to_right":
         kept.sort(key=lambda t: t[0][:, 0].mean())
 
+    # --- sketch lines: a separate, more sensitive edge pass, longest (= most important) first ---
+    sk_gray = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (3, 3), 0)
+    sk_low = max(8.0, canny_low * SKETCH_THRESHOLD)
+    sk_edges = cv2.Canny(sk_gray, sk_low, sk_low * 2.5)
+    scnts, _ = cv2.findContours(sk_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    sk_lines = []
+    for c in scnts:
+        length = cv2.arcLength(c, False)
+        if length < SKETCH_MIN_LEN:
+            continue
+        pts = cv2.approxPolyDP(c, 0.8, False).reshape(-1, 2)
+        if len(pts) >= 2:
+            sk_lines.append((length, pts))
+    sk_lines.sort(key=lambda t: t[0], reverse=True)
+    sketch, used = [], 0
+    for _, pts in sk_lines:
+        if used + len(pts) > MAX_SKETCH_POINTS:
+            continue
+        sketch.append(pts)
+        used += len(pts)
+
     return {"w": w, "h": h, "regions": regions,
+            "sketch": [{"p": pts.reshape(-1).tolist()} for pts in sketch],
             "edges": [{"c": rgb, "p": pts.reshape(-1).tolist()} for pts, rgb in kept]}
