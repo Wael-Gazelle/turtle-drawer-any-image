@@ -302,19 +302,42 @@ function applyPreset(name) {
   Object.entries(PRESETS[name]).forEach(([k, v]) => { $(k).value = v; $("o_" + k).textContent = v; });
   clearTimeout(timer); run();
 }
-document.querySelectorAll(".preset").forEach(b => b.addEventListener("click", () => applyPreset(b.dataset.p)));
-$("reset").addEventListener("click", () => applyPreset("Balanced"));
-
-$("theme").addEventListener("click", () => {
-  const d = document.documentElement;
-  const dark = (d.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
-  d.dataset.theme = dark ? "light" : "dark";
-});
-
 document.addEventListener("keydown", e => {
-  if (!res || /^(INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== "range") return;
-  if (e.key === " ") { e.preventDefault(); play(!playing); }
-  else if (e.key === "+" || e.key === "=") setSpeed(speed * 1.25);
-  else if (e.key === "-") setSpeed(speed / 1.25);
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== "range") return;
+  if (!res) return;
+
+  const step = rate * speed;   // one second of playback worth of progress
+
+  if (e.key === " ") {
+    e.preventDefault();
+    play(!playing);
+  }
+  else if (e.key === "+" || e.key === "=") {
+    setSpeed(speed * 1.25);
+  }
+  else if (e.key === "-") {
+    setSpeed(speed / 1.25);
+  }
+  else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    playing = false;
+    seek(Math.min(total, pos + step));
+  }
+  else if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    playing = false;
+    seek(Math.max(0, pos - step));
+  }
+  else if (e.key === "End") {
+    e.preventDefault();
+    playing = false;
+    pos = total;
+    render();
+  }
+  else if (e.key === "Home") {
+    e.preventDefault();
+    playing = false;
+    seek(0);
+  }
 });
 })();
