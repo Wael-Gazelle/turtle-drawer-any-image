@@ -1,10 +1,9 @@
-Set-Content README.md @"
 # Draw My Image
 
 Upload a picture and watch it being drawn with a pencil. FastAPI + OpenCV on the server, plain HTML/JS/CSS in the browser.
 
 This work was built to level up my Python skills handling difficult problems. 
-Live Demo: https://turtle-drawer-any-image.onrender.com (Hosted on a free tier, so processing might be slow due to heavy calculations).
+Live Demo: https://turtle-drawer-any-image.onrender.com (Hosted on a free tier, so processing might be very slow due to heavy calculations especially after I improved the details up to 1000 you can decrease the details to 50 for faster running), you can clone it and run it locally that will work very fast.
 
 ## Run locally
 
@@ -43,4 +42,3 @@ Put it behind HTTPS (for example a reverse proxy). Check that your host does not
 - No cookies, sessions, analytics or third-party scripts and fonts. Everything is served from this app.
 - Responses carry \`Cache-Control: no-store\`, a strict Content-Security-Policy, \`nosniff\` and \`no-referrer\`.
 - Only PNG, JPEG and WebP up to 5 MB are accepted, files are checked by their real signature, and requests are rate limited per IP (counters live in memory only).
-"@
