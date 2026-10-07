@@ -1,11 +1,5 @@
 (() => {
 const $ = id => document.getElementById(id), S = 2, MAXPX = 1200;
-const PRESETS = {
-  Soft:     {sharpness: 30, colors: 8,  texture: 75, detail: 300, sketch_detail: 35, color_detail: 50},
-  Balanced: {sharpness: 50, colors: 12, texture: 50, detail: 500, sketch_detail: 60, color_detail: 80},
-  Crisp:    {sharpness: 75, colors: 16, texture: 25, detail: 750, sketch_detail: 85, color_detail: 100},
-};
-
 /* paper presets: background colour + a matching sketch colour (both can be changed afterwards with the colour pickers) */
 const PAPERS = {
   sheet:   {bg: "#fffdf6", ink: [120, 120, 120]},
