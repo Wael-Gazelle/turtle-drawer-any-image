@@ -377,12 +377,14 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     play(!playing);
   }
+
   else if (e.key === "+" || e.key === "=") {
-    setSpeed(speed * 1.25);
+    setSpeed(Math.round((speed + 0.25) * 100) / 100);
   }
   else if (e.key === "-") {
-    setSpeed(speed / 1.25);
+    setSpeed(Math.round((speed - 0.25) * 100) / 100);
   }
+
   else if (e.key === "ArrowRight") {
     e.preventDefault();
     playing = false;

@@ -54,7 +54,7 @@ canvas{width:100%;height:auto;display:block}
 .label{margin:1.6rem 0 .4rem;font:italic 700 1.3rem var(--serif);font-variant-numeric:tabular-nums}
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin-top:.9rem}
 .speed{margin-left:auto;font-weight:600}
-.bar #speed{width:130px}
+.bar #speed{width:90px}
 
 .panel{display:flex;flex-direction:column;gap:1.2rem;padding:1.5rem;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:18px 18px 18px 4px;box-shadow:8px 8px 0 var(--ink)}
 .panel h2{margin:0;font:900 italic 1.6rem/1 var(--serif)}
