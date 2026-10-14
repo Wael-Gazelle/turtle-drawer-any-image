@@ -59,6 +59,7 @@ const msg = t => { $("msg").textContent = t || ""; };
 async function pick(file) {
   msg("");
   if (!file) return;
+  setSpeed(1);
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return msg("Please choose a PNG, JPEG or WebP image.");
   try {
     const bmp = await createImageBitmap(file);

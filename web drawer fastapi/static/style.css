@@ -101,7 +101,7 @@ input[type=color]{width:64px;height:2.1rem;padding:2px;background:#fff;border:2p
 
 /* ---- text bar under the picture ---- */
 .caption{display:flex;align-items:center;justify-content:center;min-height:3rem;margin:0;padding:.7rem 1.2rem;overflow:hidden;
-  text-align:center;background:#10123a;color:#fff;border:0;border-top:3px solid var(--ink)}
+  text-align:center;background:#10123a;color:#fff;border:0;border-bottom:3px solid var(--ink)}
 .caption[hidden]{display:none}
 .cap-text{min-height:1.25em;margin:0;font:800 24px/1.25 var(--sans);white-space:pre-wrap;overflow-wrap:anywhere}
 #cap_off{visibility:hidden}
