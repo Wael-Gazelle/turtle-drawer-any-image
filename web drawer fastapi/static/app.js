@@ -37,12 +37,19 @@ const TOOLS = {
       c.fillStyle = "#7a4a22"; c.beginPath(); c.moveTo(26, -3); c.lineTo(66, -1.6); c.lineTo(66, 1.6); c.lineTo(26, 3); c.fill();
       c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = .6; c.strokeRect(15, -3.8, 11, 7.6);
     }},
+  marker: {w: {sketch: 2, line: 2.2}, a: {sketch: 1, line: 1},
+    draw(c, body) {
+      c.fillStyle = body; c.beginPath(); c.moveTo(0, 0); c.lineTo(8, -2.6); c.lineTo(8, 2.6); c.fill();
+      c.fillStyle = "#f4f4f4"; c.fillRect(8, -4, 34, 8);
+      c.fillStyle = body; c.fillRect(8, -4, 5, 8); c.fillRect(42, -4.5, 10, 9);
+      c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = .6; c.strokeRect(8, -4, 44, 8);
+    }},
 };
 
 const cv = $("cv"), ctx = cv.getContext("2d");
 const base = document.createElement("canvas"), bctx = base.getContext("2d");
 let blob, ctl, res, ops = [], cum = [], info = {}, total = 0, pos = 0, done = 0, rate = 1, st = {w: {}, a: {}};
-let speed = 1, elapsed = 0, last = 0, playing = false, first = true, timer = 0, raf = 0, inkTimer = 0;
+let speed = 1, elapsed = 0, last = 0, playing = false, first = true, timer = 0, raf = 0, inkTimer = 0, capKind = null, capRaf = 0, capTimer = 0;
 
 const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 const fmt = t => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -153,6 +160,7 @@ function render() {
     if (n >= 2) draw(ctx, o, n);
     tip(o.p[2 * m - 2], o.p[2 * m - 1], o.c);
   }
+  syncCaption();
   ui();
 }
 
@@ -180,7 +188,7 @@ function play(on) {
   if (on && !was) { last = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); }   // never two loops
   render();
 }
-function restart(auto) { resetBase(); pos = 0; elapsed = 0; auto ? play(true) : render(); }
+function restart(auto) { resetBase(); pos = 0; elapsed = 0; capKind = null; auto ? play(true) : render(); }
 function seek(p) { if (p < pos) resetBase(); pos = p; render(); }
 function setSpeed(v) { speed = Math.min(8, Math.max(0.25, v)); $("speed").value = speed; $("o_speed").textContent = speed + "x"; }
 
@@ -237,6 +245,45 @@ function celebrate() {
   })();
 }
 
+/* ---------- text bar under the picture ---------- */
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const contrastText = bg => { const [r, g, b] = unhex(bg); return .299 * r + .587 * g + .114 * b >= 150 ? "#111111" : "#ffffff"; };
+
+function capStyle() {                                      // size, colours and visibility (live)
+  const b = $("caption");
+  b.hidden = !$("cap_show").checked;
+  b.style.background = $("cap_bg").value; b.style.color = $("cap_fg").value;
+  $("cap_text").style.fontSize = $("cap_size").value + "px";
+}
+
+function capShow(kind, animate) {                          // kind: "during" (while drawing) or "after" (when finished)
+  capKind = kind;
+  cancelAnimationFrame(capRaf); clearTimeout(capTimer);
+  const text = $(kind === "during" ? "cap_during" : "cap_after").value;
+  const t = $("cap_text"), on = $("cap_on"), off = $("cap_off"), cur = $("cap_cur"), style = $("cap_anim").value;
+  t.className = "cap-text"; cur.hidden = true;
+  if (!animate || !text || style === "none" || reducedMotion()) { on.textContent = text; off.textContent = ""; return; }
+  if (style === "typing") {                                // letters appear one by one; the untyped part keeps its space
+    const chars = Array.from(text), cps = +$("cap_speed").value, t0 = performance.now();
+    cur.hidden = false;
+    const step = now => {
+      const n = Math.min(chars.length, Math.floor((now - t0) / 1000 * cps) + 1);
+      on.textContent = chars.slice(0, n).join(""); off.textContent = chars.slice(n).join("");
+      if (n < chars.length) capRaf = requestAnimationFrame(step);
+      else capTimer = setTimeout(() => { cur.hidden = true; }, 900);
+    };
+    step(t0); return;
+  }
+  on.textContent = text; off.textContent = "";
+  void t.offsetWidth;                                      // restart the CSS animation
+  t.className = "cap-text a-" + style;
+}
+
+function syncCaption() {                                   // the right text for this moment of the drawing
+  const kind = total && pos >= total ? "after" : "during";
+  if (kind !== capKind) capShow(kind, true);
+}
+
 /* ---------- controls ---------- */
 $("drop").addEventListener("click", () => $("file").click());
 $("drop").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } });
@@ -246,6 +293,7 @@ $("drop").addEventListener("drop", e => { e.preventDefault(); $("drop").classLis
 $("file").addEventListener("change", e => pick(e.target.files[0]));
 $("again").addEventListener("click", () => {
   if (ctl) ctl.abort(); playing = false; blob = res = null; $("file").value = "";
+  capKind = null; cancelAnimationFrame(capRaf); clearTimeout(capTimer);
   $("studio").hidden = true; $("hero").hidden = false; msg("");
 });
 
@@ -284,7 +332,8 @@ document.querySelectorAll("[data-u]").forEach(el => el.addEventListener("input",
 /* ---------- paper, background colour and sketch colour ---------- */
 function paperCss() {                                     // presets use the stylesheet, custom colours are set directly
   const p = $("paper"), v = $("paper_style").value;
-  p.dataset.paper = v; p.style.background = v === "custom" ? $("bg_color").value : "";
+  p.dataset.paper = v; $("frame").dataset.paper = v;
+  p.style.background = v === "custom" ? $("bg_color").value : "";
 }
 $("paper_style").addEventListener("change", () => {
   const P = PAPERS[$("paper_style").value];
@@ -297,6 +346,22 @@ $("bg_color").addEventListener("change", () => {
   keepPlace();
 });
 $("sketch_color").addEventListener("input", () => { clearTimeout(inkTimer); inkTimer = setTimeout(keepPlace, 120); });
+
+/* ---------- text bar controls ---------- */
+["cap_size", "cap_bg", "cap_fg"].forEach(id => $(id).addEventListener("input", () => {
+  if (id === "cap_bg") $("cap_fg").value = contrastText($("cap_bg").value);   // readable text; change it afterwards if you like
+  if (id === "cap_size") $("o_cap_size").textContent = $("cap_size").value + "px";
+  capStyle();
+}));
+$("cap_show").addEventListener("change", capStyle);
+["cap_during", "cap_after"].forEach(id => $(id).addEventListener("input", () => {
+  const kind = id === "cap_during" ? "during" : "after";
+  if (capKind === kind) capShow(kind, false);              // typing in the box updates the bar instantly
+}));
+$("cap_anim").addEventListener("change", () => { if (capKind) capShow(capKind, true); });   // preview the animation
+$("cap_speed").addEventListener("input", () => { $("o_cap_speed").textContent = $("cap_speed").value + "/s"; });
+$("cap_speed").addEventListener("change", () => { if (capKind && $("cap_anim").value === "typing") capShow(capKind, true); });
+capStyle();
 
 function applyPreset(name) {
   Object.entries(PRESETS[name]).forEach(([k, v]) => { $(k).value = v; $("o_" + k).textContent = v; });

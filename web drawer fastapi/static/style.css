@@ -98,3 +98,29 @@ details h3:first-of-type{margin-top:1.1rem}
 .ctl.colorrow{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .ctl.colorrow label{margin:0}
 input[type=color]{width:64px;height:2.1rem;padding:2px;background:#fff;border:2px solid var(--ink);border-radius:8px;cursor:pointer}
+
+/* ---- text bar under the picture ---- */
+.caption{display:flex;align-items:center;justify-content:center;min-height:3rem;margin:0;padding:.7rem 1.2rem;overflow:hidden;
+  text-align:center;background:#10123a;color:#fff;border:0;border-top:3px solid var(--ink)}
+.caption[hidden]{display:none}
+.cap-text{min-height:1.25em;margin:0;font:800 24px/1.25 var(--sans);white-space:pre-wrap;overflow-wrap:anywhere}
+#cap_off{visibility:hidden}
+.cap-cur{display:inline-block;position:relative;width:0;height:1em}
+.cap-cur[hidden]{display:none}
+.cap-cur::after{content:"";position:absolute;left:1px;top:.08em;width:.09em;min-width:2px;height:1em;background:currentColor;animation:blink .5s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.cap-text.a-fade{animation:capfade .8s ease-out both}
+.cap-text.a-slide{animation:capslide .55s cubic-bezier(.2,.9,.3,1.1) both}
+.cap-text.a-pop{animation:cappop .5s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes capfade{from{opacity:0}to{opacity:1}}
+@keyframes capslide{from{transform:translateY(120%);opacity:0}to{transform:none;opacity:1}}
+@keyframes cappop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+input[type=text]{width:100%;padding:.45rem .6rem;font:inherit;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:8px}
+#cap_size,#cap_speed{accent-color:var(--pink)}
+@media (prefers-reduced-motion:reduce){.cap-text[class*=a-]{animation:none}.cap-cur::after{animation:none}}
+
+/* ---- picture and text bar sit in one frame: the border and the coloured shadow wrap both, with no gap ---- */
+.frame{margin:0 20px 20px 0;background:var(--paper);border:3px solid var(--ink);box-shadow:10px 10px 0 var(--pink),20px 20px 0 var(--yellow)}
+.frame[data-paper=white]{box-shadow:8px 8px 0 var(--ink)}
+.frame .paper{margin:0;border:0;box-shadow:none}
+.frame .paper[data-paper=ancient]{box-shadow:inset 0 0 70px rgba(110,70,20,.5)}
